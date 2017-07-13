@@ -1,0 +1,11 @@
+{
+  "name": "fundus",
+  "version": "0.0.1",
+  "description": "bla bla",
+  "main": "hist_reader.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Tengiz Adamashvili <tengoad@gmail.com>",
+  "license": "texx inc"
+}
