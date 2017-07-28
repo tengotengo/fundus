@@ -1,24 +1,27 @@
 var histReader = (function() {
-    var explodeBuff = function(ref, delimiter) {
-        var refStr = ref.join(' ');
-
-        var pattern = delimiter.join(' ');
-
-        var pieces = refStr.split(pattern);
-
+    var explodeBuff = function(buff, delimiter) {
         var result = [];
 
-        var index = 0;
-        for (var i in pieces) {
-            if (pieces[i] == '') continue;
+        var lastDelimiter = 0;
+        for (var i = 0; i < buff.length; i++) {
 
-            result[index] = pieces[i].trim().split(' ');
+            var delimiterFound = true;
 
-            for (var j in result[i]) {
-                result[index][j] = parseInt(result[i][j]) || 0;
+            for (var j = 0; j < delimiter.length; j++) {
+                if (buff[i + j] != delimiter[j]) {
+                    delimiterFound = false;
+                    break;
+                }
             }
 
-            index++;
+            if (delimiterFound) {
+                if (i) result.push(buff.slice(lastDelimiter, i - 1));
+                lastDelimiter = i + delimiter.length;
+            } else {
+                if (i == buff.length - 1) {
+                    result.push(buff.slice(lastDelimiter, buff.length));
+                }
+            }
         }
 
         return result;
@@ -32,10 +35,10 @@ var histReader = (function() {
 
         return result;
     };
-    var parseStruct = function(buffer, structTpl, structSize) {
+    var parseStruct = function(buff, structTpl, structSize) {
         var result = [];
 
-        var amount = buffer.length/structSize;
+        var amount = buff.length/structSize;
 
         for (var i = 0; i < amount; i++) {
 
@@ -44,11 +47,11 @@ var histReader = (function() {
             var tmpObj = getResultStruct(structTpl);
 
             for (var j in structTpl) {
-
-                tmpObj[ structTpl[j].name ] = arrToString(buffer.slice(
+                var sliced = buff.slice(
                     offset,
                     structTpl[j].size + offset
-                ));
+                );
+                tmpObj[ structTpl[j].name ] = arrToString(sliced);
 
                 offset += structTpl[j].size;
             }
@@ -61,6 +64,7 @@ var histReader = (function() {
     var arrToString = function(arr) {
         var resultStr = '';
         for (var i = 0; i < arr.length; i++) {
+            if (!arr[i]) continue;
             resultStr += String.fromCharCode(
                 arr[i]
             )
@@ -72,7 +76,7 @@ var histReader = (function() {
             return [
                 {
                     name: 'ID',
-                    size: 20
+                    size: 0x14
                 }, {
                     name: 'DATE_1',
                     size: 12
@@ -81,22 +85,22 @@ var histReader = (function() {
                     size: 12
                 }, {
                     name: 'COLOR_TYPE',
-                    size: 20
+                    size: 0x14
                 }, {
                     name: 'NUM',
-                    size: 72
+                    size: 0x48
                 }, {
                     name: 'FILE_NAME',
-                    size: 16
+                    size: 0x10
                 }
             ];
         };
         var Hist_Title_Struct = function() {
             return [
                 {
-                    name: 'IM',
+                    name: 'im',
                     size: 1
-                }, {
+                },                 {
                     name: 'T_ID_1',
                     size: 20
                 }, {
@@ -132,8 +136,8 @@ var histReader = (function() {
 
         var buffer = fs.readFileSync(path);
 
-        var titleSize = 168,
-            delimiterSize = 450,
+        var titleSize = 167,
+            delimiterSize = 449,
             fileSize = 200,
             partsDelimiter = [42, 73, 77],
             delimiter = (function(s) {
@@ -143,15 +147,16 @@ var histReader = (function() {
             })(delimiterSize);
 
         var parts = explodeBuff(
-            buffer.toJSON()['data'] || buffer.toJSON(),
+            buffer,
             partsDelimiter
         );
 
         var result = [];
         for (var partId = 0; partId < parts.length; partId++) {
-            var contentSize = parts[partId][0];
+            var partBuff = parts[partId];
+            var contentSize = partBuff.length;
 
-            var titlePart = parts[partId].slice(0, titleSize - 1);
+            var titlePart = partBuff.slice(0, titleSize);
 
             var titleObj = parseStruct(
                 titlePart,
@@ -159,10 +164,10 @@ var histReader = (function() {
                 titleSize
             );
 
-            var start = titleSize + delimiterSize - 1,
+            var start = titleSize + delimiterSize + 1,
                 end = start + (contentSize+1) * fileSize;
 
-            var contentPart = parts[partId].slice(start, end);
+            var contentPart = partBuff.slice(start, end);
 
             var files = parseStruct(
                 contentPart,
